@@ -14,4 +14,7 @@ This Ansible script will setup a server with the following components
 4. PostgreSQL
 5. Sidekiq
 
+### How to
+Make sure to copy all smaple files e.g. hosts.sample.ini, vars.sample.yml and envs.sample.yml to their non sample versions and replace all containing app specific values with the values of your application.
+
 For sidekiq, When setting up your deployment make sure to use the same commands as stated in sidekiq.service.j2
