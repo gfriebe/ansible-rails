@@ -1,0 +1,5 @@
+{{ deploy_user }}  ALL= NOPASSWD: /bin/systemctl start sidekiq.service
+{{ deploy_user }}  ALL= NOPASSWD: /bin/systemctl stop sidekiq.service
+{{ deploy_user }}  ALL= NOPASSWD: /bin/systemctl restart sidekiq.service
+{{ deploy_user }}  ALL= NOPASSWD: /bin/systemctl reload sidekiq.service
+{{ deploy_user }}  ALL= NOPASSWD: /bin/systemctl kill -s TSTP sidekiq.service

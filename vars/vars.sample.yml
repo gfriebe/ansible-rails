@@ -1,0 +1,23 @@
+# copy this to vars.yml and replace with values specific to your app
+---
+
+ruby_version: '3.2.2'
+
+# Your rails app name
+app_name: <app name>
+
+deploy_user: 'deploy'
+deploy_user_password: <depploy user password>
+
+# The path to your local public key file (ie. your current computer)
+deploy_user_public_key_local_path: '~/.ssh/id_rsa.pub'
+
+# credentials of postgres user which your rails app will use to connect to the database
+postgres_db_user: <db user name>
+postgres_db_password: <db user password>
+postgres_db_name: <db name>
+
+# you can leave these untouched
+postgresql_version: '14'
+postgresql_locales:
+  - 'en_US.UTF-8'

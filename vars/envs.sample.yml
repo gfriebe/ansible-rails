@@ -1,0 +1,10 @@
+# copy this file to envs.yml and replace the missing values
+---
+environment_vars:  
+  DATABASE_HOST: localhost
+  DATABASE_NAME: "{{ postgres_db_name }}"
+  DATABASE_USERNAME: "{{ postgres_db_user }}"
+  DATABASE_PASSWORD: "{{ postgres_db_password }}"
+
+  RAILS_MASTER_KEY: <copy here from your master.key file>
+  SECRET_KEY_BASE: <copy here from your credentials.yml file>
