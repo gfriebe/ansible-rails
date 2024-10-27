@@ -15,10 +15,10 @@
         name: sshd
         state: restarted
 
-    - name: Reload systemd
-      systemd:
-        daemon_reload: yes
-      become: yes    
+    - name: restart mysql
+      service:
+        name: mysql
+        state: restarted    
 
 
   tasks:
@@ -147,6 +147,68 @@
           - nodejs
           - yarn
 
+    - name: Get software for mysql
+      apt:
+        state: present
+        name:
+          - mysql-server
+          - mysql-client
+          - libmysqlclient-dev
+          - python3
+          - python3-pip
+
+    - name: Install pymysql
+      pip:
+        name: pymysql
+        executable: pip3
+
+
+    - name: Set password for root user
+      mysql_user:
+        name: "root"
+        password: "{{ db_root_password }}"
+        priv: '*.*:ALL,GRANT'
+        host: 'localhost'
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        state: present    
+
+    - name: Save root password in .my.cnf
+      template:
+        src: root_my_cnf.j2
+        dest: /root/.my.cnf
+        owner: root
+        mode: '0600'    
+          
+          
+    - name: create mysql DB user
+      mysql_user:  
+        host: "localhost"  
+        login_user: "root"  
+        login_password: "{{ db_root_password }}"  
+        name: "{{ db_user }}"          
+        password: "{{ db_password }}"  
+        priv: "{{ db_name }}%.*:ALL,GRANT" 
+
+    - name: Create the production database
+      mysql_db:
+        name: "{{ db_name }}"
+        state: present
+
+    - name: Copy mysql config 
+      template: 
+        src: templates/my.cnf.j2
+        dest: "/etc/mysql/my.cnf"
+      become: yes
+      become_user: root
+      notify: restart mysql
+
+    #- name: Disable ONLY_FULL_GROUP_BY
+    #  lineinfile: dest=/etc/mysql/my.cnf regexp="^sql_mode" line="sql_mode = 'STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'" state=present
+    #  notify:
+    #    - restart mysql        
+
+
+
 - name: Log in as deploy user and setup ruby, passenger and nginx
   hosts: web
   vars_files:
@@ -156,15 +218,15 @@
   become: true
   become_user: "{{ deploy_user }}"
 
-  handlers:
-  - name: restart nginx
-    service: name=nginx state=restarted
+  handlers:    
+    - name: restart nginx
+      service: name=nginx state=restarted
 
-  - name: restart postgresql
-    service:
-      name: postgresql
-      state: restart
-      sleep: 5
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+      become: yes      
+  
 
   tasks:
     - name: Clone Rbenv
@@ -307,52 +369,7 @@
         mode: 0440
       become: true
       become_user: root
-
-    - name: Install postgres packages
-      apt:
-        name:
-          - libpq-dev
-          - "postgresql-{{ postgresql_version }}"
-          - postgresql-contrib
-          - python3-psycopg2
-        state: present
-      become: true
-      become_user: root
-
-    - name: Ensure all configured locales are present.
-      locale_gen: "name={{ item }} state=present"
-      with_items: "{{ postgresql_locales }}"
-      register: locale_gen_result
-
-    - name: Force-restart PostgreSQL after new locales are generated.
-      service:
-        name: postgresql
-        state: restarted
-      when: locale_gen_result.changed
-      become: true
-      become_user: root
-
-    - name: Ensure PostgreSQL is started and enabled on boot.
-      service:
-        name: postgresql
-        state: started
-        enabled: true
-      become: true
-      become_user: root
-
-    - name: Create postgresql database
-      postgresql_db: name={{ postgres_db_name }}
-      become: true
-      become_user: postgres
-      # See: https://github.com/ansible/ansible/issues/16048#issuecomment-229012509
-      vars:
-        ansible_ssh_pipelining: true
-
-    - name: Create postgresql user
-      postgresql_user: name={{ postgres_db_user }} password={{ postgres_db_password }}
-      become: true
-      become_user: postgres
-
+    
     - name: Ensure Redis is started on boot
       service: name=redis-server state=started enabled=yes
       become: true
@@ -368,10 +385,10 @@
 
     - name: Enable the service
       systemd:
-        name: sidekiq
-        #state: started
+        name: sidekiq        
         enabled: yes
-      become: yes            
+      become: yes      
+      become_user: root      
 
     - name: Let deploy user restart sidekiq without sudo
       template: 

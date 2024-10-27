@@ -1,14 +1,16 @@
 # {{ ansible_managed }}
 
 server {
-  listen 80;
-  listen [::]:80;
-
-  server_name _;
+  
+  server_name app.mobilebizz.net;
   root /home/{{ deploy_user }}/{{ app_name }}/current/public;
 
   passenger_enabled on;
   passenger_app_env production;
+
+   location / {
+        try_files /maintenance.html =503;
+    }
 
   location /cable {
     passenger_app_group_name {{ app_name }}_websocket;

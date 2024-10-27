@@ -13,9 +13,10 @@ deploy_user_password: <depploy user password>
 deploy_user_public_key_local_path: '~/.ssh/id_rsa.pub'
 
 # credentials of postgres user which your rails app will use to connect to the database
-postgres_db_user: <db user name>
-postgres_db_password: <db user password>
-postgres_db_name: <db name>
+db_root_password: <root pwd>
+db_user: <db user name>
+db_password: <db user password>
+db_name: <db name>
 
 # you can leave these untouched
 postgresql_version: '14'
