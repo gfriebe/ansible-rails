@@ -1,0 +1,115 @@
+- name: Install Nginx
+  apt:
+    name:
+      - nginx
+    state: present
+
+- name: Copy app nginx conf
+  template:
+    src: nginx_app.conf.j2
+    dest: /etc/nginx/sites-enabled/{{ app_name }}
+    force: no
+
+- name: Ensure default virtual host is removed.
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+
+
+# passenger
+- name: Import Phusion Passenger GPG key
+  shell: |
+    curl https://oss-binaries.phusionpassenger.com/auto-software-signing-gpg-key.txt | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/phusion.gpg >/dev/null
+
+- name: Add Phusion Passenger repo
+  shell: |
+    sudo sh -c 'echo deb https://oss-binaries.phusionpassenger.com/apt/passenger noble main > /etc/apt/sources.list.d/passenger.list'
+
+- name: Update APT cache
+  apt:
+    update_cache: yes
+
+- name: Install Passenger
+  apt:
+    name:
+      - libnginx-mod-http-passenger
+    state: present
+
+- name: Let deploy user restart passenger without sudo
+  template:
+    src: sudoers_passenger.j2
+    dest: /etc/sudoers.d/passenger
+    validate: 'visudo -cf %s'
+    mode: 0440
+
+- name: Ensure Passenger module is enabled
+  file:
+    src: /usr/share/nginx/modules-available/mod-http-passenger.load
+    dest: /etc/nginx/modules-enabled/50-mod-http-passenger.conf
+    state: link
+
+- name: Set Passenger Ruby version in Passenger config
+  lineinfile:
+    path: /etc/nginx/passenger.conf
+    create: yes
+    line: "passenger_ruby /home/{{ deploy_user }}/.rbenv/shims/ruby;"
+    state: present
+
+- name: Ask Passenger to use the Rbenv ruby
+  lineinfile:
+    dest: /etc/nginx/conf.d/mod-http-passenger.conf
+    regexp: '^passenger_ruby'
+    line: "passenger_ruby /home/{{ deploy_user }}/.rbenv/shims/ruby;"
+    state: present
+
+- name: Install Certbot
+  apt:
+    name:
+      - certbot
+      - python3-certbot-nginx
+      - python3-openssl
+    state: present
+    update_cache: yes
+
+- name: Check if Certbot is installed
+  command: which certbot
+  register: certbot_exists
+  failed_when: certbot_exists.rc != 0
+
+- name: Check if SSL certificate exists and is valid
+  shell: |
+    if [ -f "/etc/letsencrypt/live/{{ domain_name }}/cert.pem" ]; then
+      openssl x509 -checkend 86400 -noout -in "/etc/letsencrypt/live/{{ domain_name }}/cert.pem"
+    else
+      exit 1
+    fi
+  args:
+    executable: /bin/bash
+  register: cert_check
+  ignore_errors: yes
+
+- name: Obtain Let's Encrypt SSL certificate and update Nginx for {{ domain_name }} with {{ certbot_email }}
+  command: >
+    certbot --nginx --non-interactive --agree-tos
+    --email "{{ certbot_email }}"
+    -d "{{ domain_name }}"
+    --redirect
+  args:
+    creates: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem"
+
+- name: Create Certbot renewal cron job
+  cron:
+    name: "Certbot auto-renewal"
+    job: "certbot renew --quiet"
+    special_time: daily
+
+# I am not sure why systemctl restart is not working
+- name: Kill processes using ports 80/443
+  shell: "fuser -k 80/tcp || true && fuser -k 443/tcp || true"
+  ignore_errors: yes
+
+
+- name: Start nginx service
+  service:
+    name: nginx
+    state: started

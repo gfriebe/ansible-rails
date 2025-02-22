@@ -1,0 +1,40 @@
+- name: Add Node.js 22 repository using NodeSource script
+  shell: |
+    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+  args:
+    creates: "/etc/apt/sources.list.d/nodesource.list"
+
+- name: Install Node.js
+  apt:
+    name: nodejs
+    state: present
+
+#- name: Remove existing Yarn binary (if present)
+#  file:
+#    path: /usr/bin/yarn
+#    state: absent
+
+- name: Enable Corepack globally
+  shell: corepack enable
+  args:
+    executable: /bin/bash
+
+- name: Ensure Yarn is set to stable version for deploy user
+  become: yes
+  become_user: deploy
+  shell: corepack prepare yarn@stable --activate
+  args:
+    executable: /bin/bash
+
+- name: Verify Yarn installation for deploy user
+  become: yes
+  become_user: deploy
+  shell: yarn --version
+  args:
+    executable: /bin/bash
+  register: yarn_version
+  changed_when: false
+
+- name: Debug Yarn version for deploy user
+  debug:
+    var: yarn_version.stdout

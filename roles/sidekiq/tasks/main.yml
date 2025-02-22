@@ -1,0 +1,17 @@
+- name: Copy sidekiq service to systemd directory
+  template:
+    src: sidekiq.service.j2
+    dest: "/lib/systemd/system/sidekiq.service"
+  notify: Reload systemd
+
+- name: Enable the service
+  systemd:
+    name: sidekiq
+    enabled: yes
+
+- name: Let deploy user restart sidekiq without sudo
+  template:
+    src: sudoers_sidekiq.j2
+    dest: /etc/sudoers.d/sidekiq
+    validate: 'visudo -cf %s'
+    mode: 0440

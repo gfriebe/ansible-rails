@@ -1,0 +1,119 @@
+- name: Get total memory size
+  ansible.builtin.shell: "awk '/MemTotal/ {print $2}' /proc/meminfo"
+  register: total_memory_kb
+  changed_when: false
+
+- name: Convert memory to MB
+  ansible.builtin.set_fact:
+    swap_size_mb: "{{ (total_memory_kb.stdout | int / 1024) | int }}"
+
+- name: Check if swapfile already exists
+  ansible.builtin.stat:
+    path: /swapfile
+  register: swapfile_check
+
+- name: Create swap file (if not exists)
+  ansible.builtin.command: "fallocate -l {{ swap_size_mb }}M /swapfile"
+  when: not swapfile_check.stat.exists
+  become: yes
+
+- name: Set correct permissions on swap file
+  ansible.builtin.file:
+    path: /swapfile
+    mode: '0600'
+  when: not swapfile_check.stat.exists
+  become: yes
+
+- name: Format swap file
+  ansible.builtin.command: "mkswap /swapfile"
+  when: not swapfile_check.stat.exists
+  become: yes
+
+- name: Enable swap file
+  ansible.builtin.command: "swapon /swapfile"
+  when: not swapfile_check.stat.exists
+  become: yes
+
+- name: Ensure swap is persistent across reboots
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    line: "/swapfile none swap sw 0 0"
+    state: present
+  become: yes
+
+- name: Modify SSH config
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^AllowAgentForwarding'
+    line: 'AllowAgentForwarding yes'
+  notify:
+    - restart sshd
+
+- name: Create deploy user
+  user:
+    name: "{{ deploy_user }}"
+    password: "{{ deploy_user_password | password_hash('sha512') }}"
+    groups: sudo
+    shell: /bin/bash
+    state: present
+    update_password: on_create
+
+- name: Set execute permissions on the user's home directory
+  file:
+    path: "/home/{{ deploy_user }}"
+    mode: '0755'
+
+- name: Set up SSH key login
+  authorized_key:
+    user: "{{ deploy_user }}"
+    state: present
+    key: "{{ lookup('file', deploy_user_public_key_local_path) }}"
+
+- name: Disable password login
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: "^PasswordAuthentication"
+    line: "PasswordAuthentication no"
+    state: present
+  notify:
+    - restart sshd
+
+- name: Ensure APT trusted.gpg.d directory exists
+  file:
+    path: /etc/apt/trusted.gpg.d/
+    state: directory
+    mode: '0755'
+
+- name: enable linger for user service
+  command: "loginctl enable-linger {{ deploy_user }}"
+
+- name: Update APT cache
+  apt:
+    update_cache: yes
+
+
+- name: Install dependencies
+  apt:
+    state: present
+    name:
+      - git-core
+      - curl
+      - zlib1g-dev
+      - build-essential
+      - libssl-dev
+      - libreadline-dev
+      - libyaml-dev
+      - libsqlite3-dev
+      - sqlite3
+      - libxml2-dev
+      - libxslt1-dev
+      - libcurl4-openssl-dev
+      - software-properties-common
+      - libffi-dev
+      - dirmngr
+      - gnupg
+      - apt-transport-https
+      - ca-certificates
+      - python3-apt
+      - python3-pycurl
+      - apt-transport-https

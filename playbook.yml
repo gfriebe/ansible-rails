@@ -1,0 +1,15 @@
+---
+- hosts: web
+  become: true
+  vars_files:
+    - vars/vars.yml
+    - vars/envs.yml
+
+  roles:
+    - { role: common, tags: ["common"] }      # SSH, users, security
+    - { role: database, tags: ["database"] }    # MySQL & redis setup
+    - { role: node, tags: ["node"] }        # Node.js setup
+    - { role: python, tags: ["python"] }      # Python setup
+    - { role: nginx, tags: ["nginx"] }       # Nginx & passenger & certbot setup
+    - { role: ruby, tags: ["ruby"] }        # Ruby & Bundler setup
+    - { role: sidekiq, tags: ["sidekiq"] }     # App deployment & Sidekiq

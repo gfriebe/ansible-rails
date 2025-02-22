@@ -1,0 +1,127 @@
+- name: Install required system dependencies
+  apt:
+    name:
+      - git
+      - curl
+      - zlib1g-dev
+      - build-essential
+      - libssl-dev
+      - libreadline-dev
+      - libyaml-dev
+      - libsqlite3-dev
+      - sqlite3
+    state: present
+
+- name: Ensure deploy user exists
+  user:
+    name: "{{ deploy_user }}"
+    createhome: yes
+    shell: /bin/bash
+  become: yes
+
+- name: Clone rbenv and plugins
+  git:
+    repo: "{{ item.repo }}"
+    dest: "/home/{{ deploy_user }}/.rbenv/{{ item.dest }}"
+    clone: yes
+    update: yes
+  loop:
+    - { repo: "https://github.com/rbenv/rbenv.git", dest: "" }
+    - { repo: "https://github.com/rbenv/ruby-build.git", dest: "plugins/ruby-build" }
+  become_user: "{{ deploy_user }}"
+
+- name: Add rbenv to PATH and initialize in .bashrc
+  blockinfile:
+    path: "/home/{{ deploy_user }}/.bashrc"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK: RBENV"
+    block: |
+      export PATH="$HOME/.rbenv/bin:$PATH"
+      eval "$(rbenv init -)"
+  become_user: "{{ deploy_user }}"
+
+- name: Check installed Ruby versions
+  shell: "/home/{{ deploy_user }}/.rbenv/bin/rbenv versions --bare"
+  register: rbenv_versions
+  become_user: "{{ deploy_user }}"
+  changed_when: false
+  failed_when: false
+
+- name: Install Ruby {{ ruby_version }} if not installed
+  shell: "/home/{{ deploy_user }}/.rbenv/bin/rbenv install {{ ruby_version }}"
+  when: ruby_version not in rbenv_versions.stdout_lines
+  become_user: "{{ deploy_user }}"
+
+- name: Set global Ruby version
+  shell: "/home/{{ deploy_user }}/.rbenv/bin/rbenv global {{ ruby_version }} && /home/{{ deploy_user }}/.rbenv/bin/rbenv rehash"
+  become_user: "{{ deploy_user }}"
+
+- name: Ensure application directories exist
+  file:
+    path: "/home/{{ deploy_user }}/{{ app_name }}/{{ item }}"
+    state: directory
+    owner: "{{ deploy_user }}"
+    group: "{{ deploy_user }}"
+    mode: '0755'
+  loop:
+    - ""
+    - "shared/config"
+  become: yes
+
+- name: Update application configuration
+  template:
+    src: "{{ item.src }}"
+    dest: "/home/{{ deploy_user }}/{{ app_name }}/shared/config/{{ item.dest }}"
+    owner: "{{ deploy_user }}"
+    group: "{{ deploy_user }}"
+  loop:
+    - { src: "master.key.j2", dest: "master.key" }
+    - { src: "env.j2", dest: "../../etc/environment" }
+  become: yes
+
+- name: Install Bundler v2
+  command: "/home/{{ deploy_user }}/.rbenv/shims/gem install bundler"
+  become_user: "{{ deploy_user }}"
+
+- name: Restart nginx
+  service:
+    name: nginx
+    state: restarted
+  become: yes
+
+- name: Configure swap file if needed
+  block:
+    - name: Check if swap is enabled
+      command: "swapon --show"
+      register: swap_status
+      changed_when: false
+      become: yes
+
+    - name: Create swap file if not present
+      command: "fallocate -l {{ ansible_memtotal_mb }}M /swapfile"
+      when: swap_status.stdout == ""
+      become: yes
+
+    - name: Set swap file permissions
+      file:
+        path: /swapfile
+        mode: '0600'
+      when: swap_status.stdout == ""
+      become: yes
+
+    - name: Set up swap space
+      command: "mkswap /swapfile"
+      when: swap_status.stdout == ""
+      become: yes
+
+    - name: Enable swap
+      command: "swapon /swapfile"
+      when: swap_status.stdout == ""
+      become: yes
+
+    - name: Persist swap file in fstab
+      lineinfile:
+        path: /etc/fstab
+        line: "/swapfile swap swap defaults 0 0"
+        state: present
+      become: yes
+  when: ansible_memtotal_mb < 4096  # Only enable swap if RAM is below 4GB

@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# MySQL Database Details
+DB_USER="root"
+DB_PASSWORD="qw39-.8h6rh9238"
+DB_NAME="contractworx_production"
+
+# Destination Server Details
+DESTINATION_SERVER="5.189.148.135"
+DESTINATION_USERNAME="migo"
+DESTINATION_PATH="/backup"
+
+# Backup File
+BACKUP_FILE="backup.sql.gz"
+
+# Create MySQL Database Backup
+mysqldump -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" | gzip > "$BACKUP_FILE"
+
+# Transfer Backup to Destination Server
+scp "$BACKUP_FILE" "$DESTINATION_USERNAME"@"$DESTINATION_SERVER":"$DESTINATION_PATH"
+
+# Import Backup on Destination Server
+#ssh "$DESTINATION_USERNAME"@"$DESTINATION_SERVER" "gzip -d -c $DESTINATION_PATH/$BACKUP_FILE | mysql -u$DB_USER -p$DB_PASSWORD $DB_NAME"
+
+# Clean up local backup file (optional)
+rm "$BACKUP_FILE"

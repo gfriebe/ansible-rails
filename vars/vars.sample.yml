@@ -1,5 +1,12 @@
 # copy this to vars.yml and replace with values specific to your app
 ---
+# staging
+environment: 'staging'
+domain_name: 'cw.primecoder.de'
+
+# production
+#environment: 'production'
+#domain_name: 'app.mobilebizz.net'
 
 ruby_version: '3.2.2'
 
@@ -17,8 +24,3 @@ db_root_password: <root pwd>
 db_user: <db user name>
 db_password: <db user password>
 db_name: <db name>
-
-# you can leave these untouched
-postgresql_version: '14'
-postgresql_locales:
-  - 'en_US.UTF-8'

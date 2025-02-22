@@ -1,16 +1,19 @@
 # {{ ansible_managed }}
 
 server {
-  
-  server_name app.mobilebizz.net;
+
+  server_name {{ domain_name }};
+
   root /home/{{ deploy_user }}/{{ app_name }}/current/public;
 
   passenger_enabled on;
-  passenger_app_env production;
+  passenger_app_env {{ app_environment }};
 
-   location / {
-        try_files /maintenance.html =503;
-    }
+  passenger_preload_bundler on;
+
+   #location / {
+   #     try_files /maintenance.html =503;
+   # }
 
   location /cable {
     passenger_app_group_name {{ app_name }}_websocket;
