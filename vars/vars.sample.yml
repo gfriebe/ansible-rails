@@ -8,7 +8,7 @@ domain_name: 'cw.primecoder.de'
 #environment: 'production'
 #domain_name: 'app.mobilebizz.net'
 
-ruby_version: '3.2.2'
+ruby_version: '3.3.8'
 
 # Your rails app name
 app_name: <app name>
